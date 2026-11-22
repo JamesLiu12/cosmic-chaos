@@ -2,7 +2,10 @@ import PrefixScan from "../gpu/PrefixScan";
 import { explosionParallelWgsl, explosionSerialWgsl } from "../shaders";
 import type { SimulationAlgorithms, SimulationBuffers } from "./types";
 
-type ExplosionPass = { pipeline: GPUComputePipeline; bindGroup: GPUBindGroup };
+type ExplosionPass = {
+  pipeline: GPUComputePipeline;
+  bindGroup: GPUBindGroup
+};
 
 export default class ExplosionStage {
   private readonly buffers: SimulationBuffers;

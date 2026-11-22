@@ -126,7 +126,9 @@ export function createControlPanel(
   const algorithmControllers = [
     simulationFolder.add(algorithms, "gravity", { Naive: "naive", Tiled: "tiled" }).name("Gravity"),
     simulationFolder.add(algorithms, "collision", { "All pairs": "all-pairs" }).name("Collision"),
-    simulationFolder.add(algorithms, "absorption", { "Full scan": "full-scan" }).name("Absorption"),
+    simulationFolder.add(algorithms, "absorption", {
+      "Full scan": "full-scan", "Donor lists": "donor-lists",
+    }).name("Absorption"),
     simulationFolder.add(algorithms, "compaction", { Serial: "serial", Scan: "scan" }).name("Compaction"),
   ];
   const explosionAlgorithm = simulationFolder.add(algorithms, "explosion", {

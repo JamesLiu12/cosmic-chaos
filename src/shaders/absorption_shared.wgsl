@@ -25,41 +25,12 @@ fn transferredMass(donor: Body, receiver: Body) -> f32 {
     return min(donor.mass, rate * params.fixedDt);
 }
 
-@compute @workgroup_size(64)
-fn applyAbsorption(@builtin(global_invocation_id) id: vec3<u32>) {
-    let i = id.x;
-    if (i >= params.bodyCount) {
-        return;
-    }
+struct ReceiverTransfer {
+    body: Body,
+    accepted: bool,
+}
 
-    let body = inputBodies[i];
-
-    let candidate = collisionCandidates[i];
-
-    if (candidate != i) {
-        if (collisionCandidates[candidate] != candidate) {
-            outputBodies[i] = body;
-        }
-
-        return;
-    }
-
-    var gainedMass = 0.0;
-    var radiusCubed = body.radius * body.radius * body.radius;
-
-    for (var j = 0u; j < params.bodyCount; j++) {
-        if (j == i || collisionCandidates[j] != i) {
-            continue;
-        }
-
-        let donor = inputBodies[j];
-        let amount = transferredMass(donor, body);
-        let donorRadiusCubed = donor.radius * donor.radius * donor.radius;
-
-        gainedMass += amount;
-        radiusCubed += donorRadiusCubed * (amount / donor.mass);
-    }
-
+fn resolveReceiver(body: Body, gainedMass: f32, radiusCubed: f32) -> ReceiverTransfer {
     var receiver = body;
     var acceptsTransfer = gainedMass > 0.0;
 
@@ -89,28 +60,20 @@ fn applyAbsorption(@builtin(global_invocation_id) id: vec3<u32>) {
         }
     }
 
-    outputBodies[i] = receiver;
+    return ReceiverTransfer(receiver, acceptsTransfer);
+}
 
-    for (var j = 0u; j < params.bodyCount; j++) {
-        if (j == i || collisionCandidates[j] != i) {
-            continue;
-        }
-
-        let donor = inputBodies[j];
-        var result = donor;
-
-        if (acceptsTransfer) {
-            let amount = transferredMass(donor, body);
-
-            if (amount == donor.mass) {
-                result = Body();
-            } else if (amount > 0.0) {
-                result.mass = donor.mass - amount;
-                let remainingFraction = result.mass / donor.mass;
-                result.radius = donor.radius * pow(remainingFraction, 1.0 / 3.0);
-            }
-        }
-
-        outputBodies[j] = result;
+fn applyDonorTransfer(donor: Body, receiver: Body) -> Body {
+    let amount = transferredMass(donor, receiver);
+    if (amount == donor.mass) {
+        return Body();
     }
+
+    var result = donor;
+    if (amount > 0.0) {
+        result.mass = donor.mass - amount;
+        let remainingFraction = result.mass / donor.mass;
+        result.radius = donor.radius * pow(remainingFraction, 1.0 / 3.0);
+    }
+    return result;
 }
