@@ -17,12 +17,12 @@ const gpuContext = await WebGpuContext.create(canvas);
 
 const sceneOptions: SceneOptions = {
   seed: 0,
-  initialBodyCount: 500,
+  initialBodyCount: 2000,
   initialVelocityRange: 10,
   simulationConfig: {
     capacity: 100000,
     fixedDt: 1 / 120,
-    gravitationalConstant: 0.1,
+    gravitationalConstant: 0.05,
     softeningLength: 0.1,
     linearDragRate: 1.0,
     starMass: 80,
@@ -30,8 +30,8 @@ const sceneOptions: SceneOptions = {
   },
   boundary: {
     enabled: true,
-    min: vec3.create(-20, -10, -10), 
-    max: vec3.create(20, 10, 10)
+    min: vec3.create(-50, -50, -50), 
+    max: vec3.create(50, 50, 50)
   }
 };
 
