@@ -136,17 +136,17 @@ I can regenerate the scene with a new seed, body count, initial velocity range, 
 
 ### Generator examples
 
-![Red, orange, and blue stars among rocky bodies with glowing cracks](images/bodies-1.png)
+<img width="1919" height="1013" alt="Red, orange, and blue stars among rocky bodies with glowing cracks" src="https://github.com/user-attachments/assets/4f3e487e-7125-4d13-a9c5-af5f6ab2022d" />
 
 *Warm and cool stars cast colored light across a field of rocky bodies.*
 
-![A close-up of two bright stars lighting the surrounding rocks](images/bodies-2.png)
+<img width="1919" height="1013" alt="A close-up of two bright stars lighting the surrounding rocks" src="https://github.com/user-attachments/assets/21550114-dd8a-4ac7-8f36-2be63c36af15" />
 
 *A hot star lights up nearby rocky planets. The planets' glowing cracks are visible even on their darker sides.*
 
 <p>
-  <img src="images/controls-1.png" width="320" align="top" alt="Initial scene, boundary, physics, and simulation algorithm settings" />
-  <img src="images/controls-2.png" width="320" align="top" alt="Simulation presets, rendering settings, and camera controls" />
+  <img width="320" align="top" alt="Initial scene, boundary, physics, and simulation algorithm settings" src="https://github.com/user-attachments/assets/3a9cd125-2edc-44aa-a469-f5090f42fb7f" />
+  <img width="320" align="top" alt="Simulation presets, rendering settings, and camera controls" src="https://github.com/user-attachments/assets/1ff2eb8b-5da1-45a6-9045-2ef5b19a5fa1" />
 </p>
 
 *The control panel showing the scene, physics, simulation, rendering, and camera settings.*
