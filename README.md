@@ -88,3 +88,69 @@ The renderer draws straight from the simulation’s GPU buffer, so body position
 Please check out the [live demo](https://jamesliu12.github.io/cosmic-chaos/) and try a seed of your own!
 
 Next up are merging, explosions, and a faster gravity solver.
+
+## Milestone #2
+
+I hit my core Milestone #2 goals! The sandbox now starts with 2,000 rocky bodies. When gravity brings bodies together and they overlap, a larger one can gradually absorb mass from a smaller one. A body lights up when it reaches the star threshold. At the explosion threshold, it starts to collapse, pulling nearby bodies inward before sending out a shockwave and scattering fragments.
+
+Each star gets a warm or cool color from its seed. Noise gives it patches of different brightness, and the hotter areas turn whiter as the star gains mass. Rocky planets have layered surface noise and cracks that glow brighter as they grow. Ambient light gives the rocks a little color in the dark, nearby stars cast colored light that fades with distance, and bloom gives bright stars and cracks a soft glow.
+
+### Performance
+
+I built baseline versions of the five main simulation stages first, then optimized each one. Tiled gravity reuses body data in workgroup memory, and a spatial grid limits collision checks to nearby bodies. Parallel scans pack surviving bodies, group neighbors and donors into contiguous lists, and make room for fragments from simultaneous explosions. Reductions help fit the grid to the scene and divide a star's mass among its fragments.
+
+I compared both presets in Chrome 157 on an NVIDIA RTX 3090 at **2560 × 1440**. Each run started from seed 0 with 5,000 bodies and used the default scene settings and a fixed camera. I let the simulation run for 10 seconds of simulated time, then measured the next 900 frames, through simulated second 25. During that window, the active count ranged from 4,655 to 8,294 in Baseline and from 4,655 to 8,228 in All Optimizations as bodies were absorbed and stars broke apart.
+
+I used WebGPU timestamps at each stage boundary. Every frame includes two fixed physics steps of 1/120 second each and one complete surface render.
+
+| Stage | Baseline (mean ms/frame) | All Optimizations (mean ms/frame) |
+| --- | ---: | ---: |
+| Half-step drift | 0.017 | 0.017 |
+| Gravity and integration | 2.854 | 1.839 |
+| Collision detection | 2.710 | 0.673 |
+| Absorption | 2.194 | 0.248 |
+| Compaction | 6.972 | 0.129 |
+| Explosion | 7.570 | 0.214 |
+| Dispatch size and step counter | 0.004 | 0.004 |
+| **Simulation subtotal** | **22.321** | **3.124** |
+| Render setup and star light collection | 0.016 | 0.015 |
+| Body drawing and surface shading | 1.907 | 2.477 |
+| Bloom | 0.319 | 0.475 |
+| Compositing and tone mapping | 0.046 | 0.076 |
+| **Rendering subtotal** | **2.288** | **3.043** |
+| **Whole frame** | **24.609** | **6.168** |
+
+The median whole-frame GPU time dropped from **18.84 ms to 5.77 ms**, about a **3.3× speedup**. Compaction and explosions saved the most time. The demo uses the optimized preset by default, and I also tested it with 12,000 starting bodies.
+
+I also changed **Star Mass** while replaying the same 60 snapshots at 2560 × 1440. More bodies lit up as stars, and every shaded rock pixel had more lights to check.
+
+| Star Mass | Mean star lights per frame | Mean rendering time | 95th percentile |
+| ---: | ---: | ---: | ---: |
+| 80 | 21.2 | 2.47 ms | 3.93 ms |
+| 40 | 75.3 | 4.28 ms | 7.60 ms |
+| 20 | 453.6 | 14.86 ms | 18.74 ms |
+
+### Controls
+
+I can regenerate the scene with a new seed, body count, initial velocity range, or boundary box. Gravity and drag can be tuned while the simulation runs, and star and explosion thresholds take effect when I regenerate. I can also adjust bloom, exposure, and the camera, or switch to the collision debug view. Under **Performance → Simulation**, I can switch presets or try each algorithm on its own.
+
+### Generator examples
+
+![Red, orange, and blue stars among rocky bodies with glowing cracks](images/bodies-1.png)
+
+*Warm and cool stars cast colored light across a field of rocky bodies.*
+
+![A close-up of two bright stars lighting the surrounding rocks](images/bodies-2.png)
+
+*A hot star lights up nearby rocky planets. The planets' glowing cracks are visible even on their darker sides.*
+
+<p>
+  <img src="images/controls-1.png" width="320" align="top" alt="Initial scene, boundary, physics, and simulation algorithm settings" />
+  <img src="images/controls-2.png" width="320" align="top" alt="Simulation presets, rendering settings, and camera controls" />
+</p>
+
+*The control panel showing the scene, physics, simulation, rendering, and camera settings.*
+
+### Before the final submission
+
+I've met all my project goals! I'll do my best to tackle a few stretch goals before the final submission. Rendering is my biggest priority. I'd like to try clustered forward+ and deferred rendering to see how they handle scenes with lots of star lights. I'll also look for ways to speed up gravity and collision detection and try adding a little displacement to the rocky surfaces.
