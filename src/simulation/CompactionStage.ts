@@ -1,36 +1,35 @@
+import BufferOwner from "../gpu/BufferOwner";
+import { createComputePass, encodeComputePass, type ComputePass } from "../gpu/ComputePass";
 import PrefixScan from "../gpu/PrefixScan";
 import { compactScanWgsl, compactSerialWgsl } from "../shaders";
 import type { SimulationAlgorithms, SimulationBuffers } from "./types";
 
-type CompactionPass = {
-  pipeline: GPUComputePipeline;
-  bindGroup: GPUBindGroup;
-};
-
 export default class CompactionStage {
-  private readonly oldToNew: GPUBuffer;
-  private readonly pipeline: GPUComputePipeline;
-  private readonly bindGroup: GPUBindGroup;
+  private readonly serial: ComputePass;
   private readonly params: GPUBuffer;
   private readonly dispatchArgs: GPUBuffer;
   private readonly scanCount: GPUBuffer;
   private readonly scan: PrefixScan;
-  private readonly markPass: CompactionPass;
-  private readonly scatterPass: CompactionPass;
-  private readonly publishPass: CompactionPass;
-  private readonly scratchBuffers: GPUBuffer[] = [];
+  private readonly markPass: ComputePass;
+  private readonly scatterPass: ComputePass;
+  private readonly publishPass: ComputePass;
+  private readonly bufferOwner: BufferOwner;
 
   constructor(device: GPUDevice, buffers: SimulationBuffers) {
+    this.bufferOwner = new BufferOwner(device);
     this.params = buffers.params;
     this.dispatchArgs = buffers.dispatchArgs;
-    this.oldToNew = device.createBuffer({
+    const { bodiesA, bodiesB, collisionCandidates, params } = buffers;
+    const bodyArrayBytes = collisionCandidates.size;
+    const oldToNew = this.bufferOwner.createBuffer({
       label: "compaction slot mapping",
-      size: buffers.collisionCandidates.size,
+      size: bodyArrayBytes,
       usage: GPUBufferUsage.STORAGE,
     });
-    this.pipeline = device.createComputePipeline({
+    this.serial = createComputePass(device, {
       label: "compaction pipeline",
-      layout: "auto",
+      bindGroupLabel: "compaction bind group",
+      passLabel: "compaction pass",
       compute: {
         module: device.createShaderModule({
           label: "compaction shader",
@@ -38,32 +37,25 @@ export default class CompactionStage {
         }),
         entryPoint: "compactBodies",
       },
-    });
-    this.bindGroup = device.createBindGroup({
-      label: "compaction bind group",
-      layout: this.pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: buffers.bodiesB } },
-        { binding: 1, resource: { buffer: buffers.bodiesA } },
-        { binding: 2, resource: { buffer: buffers.collisionCandidates } },
-        { binding: 3, resource: { buffer: buffers.params } },
-        { binding: 4, resource: { buffer: this.oldToNew } },
-      ],
+      buffers: { 0: bodiesB, 1: bodiesA, 2: collisionCandidates, 3: params, 4: oldToNew },
     });
 
-    const createScratch = (label: string): GPUBuffer => {
-      const buffer = device.createBuffer({
-        label,
-        size: buffers.collisionCandidates.size,
-        usage: GPUBufferUsage.STORAGE,
-      });
-      this.scratchBuffers.push(buffer);
-      return buffer;
-    };
-    const alive = createScratch("compaction alive flags");
-    const prefixes = createScratch("compaction exclusive prefixes");
-    const candidateScratch = createScratch("compaction remapped candidates");
-    this.scanCount = device.createBuffer({
+    const alive = this.bufferOwner.createBuffer({
+      label: "compaction alive flags",
+      size: bodyArrayBytes,
+      usage: GPUBufferUsage.STORAGE,
+    });
+    const prefixes = this.bufferOwner.createBuffer({
+      label: "compaction exclusive prefixes",
+      size: bodyArrayBytes,
+      usage: GPUBufferUsage.STORAGE,
+    });
+    const candidateScratch = this.bufferOwner.createBuffer({
+      label: "compaction remapped candidates",
+      size: bodyArrayBytes,
+      usage: GPUBufferUsage.STORAGE,
+    });
+    this.scanCount = this.bufferOwner.createBuffer({
       label: "compaction input count",
       size: Uint32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -74,34 +66,21 @@ export default class CompactionStage {
       label: "scan compaction shader",
       code: compactScanWgsl,
     });
-    const resources = [
-      buffers.bodiesB,
-      buffers.bodiesA,
-      buffers.collisionCandidates,
-      buffers.params,
-      this.scanCount,
-      alive,
-      prefixes,
-      candidateScratch,
-    ];
-    const createPass = (entryPoint: string, bindings: number[]): CompactionPass => {
-      const pipeline = device.createComputePipeline({
-        label: `compaction/scan/${entryPoint} pass`,
-        layout: "auto",
-        compute: { module, entryPoint },
-      });
-      const bindGroup = device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: bindings.map((binding) => ({
-          binding,
-          resource: { buffer: resources[binding] },
-        })),
-      });
-      return { pipeline, bindGroup };
-    };
-    this.markPass = createPass("markAlive", [0, 3, 5]);
-    this.scatterPass = createPass("scatterBodies", [0, 1, 2, 3, 5, 6, 7]);
-    this.publishPass = createPass("publishCandidates", [2, 3, 4, 5, 6, 7]);
+    this.markPass = createComputePass(device, {
+      label: "compaction/scan/markAlive pass",
+      compute: { module, entryPoint: "markAlive" },
+      buffers: { 0: bodiesB, 3: params, 5: alive },
+    });
+    this.scatterPass = createComputePass(device, {
+      label: "compaction/scan/scatterBodies pass",
+      compute: { module, entryPoint: "scatterBodies" },
+      buffers: { 0: bodiesB, 1: bodiesA, 2: collisionCandidates, 3: params, 5: alive, 6: prefixes, 7: candidateScratch },
+    });
+    this.publishPass = createComputePass(device, {
+      label: "compaction/scan/publishCandidates pass",
+      compute: { module, entryPoint: "publishCandidates" },
+      buffers: { 2: collisionCandidates, 3: params, 4: this.scanCount, 5: alive, 6: prefixes, 7: candidateScratch },
+    });
   }
 
   public encode(
@@ -110,36 +89,22 @@ export default class CompactionStage {
   ): void {
     switch (algorithm) {
       case "serial": {
-        const pass = encoder.beginComputePass({ label: "compaction pass" });
-        pass.setPipeline(this.pipeline);
-        pass.setBindGroup(0, this.bindGroup);
-        pass.dispatchWorkgroups(1);
-        pass.end();
+        encodeComputePass(encoder, this.serial, 1);
         break;
       }
       case "scan": {
         encoder.copyBufferToBuffer(this.params, 12, this.scanCount, 0, 4);
-        this.encodeBodiesPass(encoder, this.markPass);
+        encodeComputePass(encoder, this.markPass, this.dispatchArgs);
         this.scan.encode(encoder);
-        this.encodeBodiesPass(encoder, this.scatterPass);
-        this.encodeBodiesPass(encoder, this.publishPass);
+        encodeComputePass(encoder, this.scatterPass, this.dispatchArgs);
+        encodeComputePass(encoder, this.publishPass, this.dispatchArgs);
         break;
       }
     }
   }
 
-  private encodeBodiesPass(encoder: GPUCommandEncoder, step: CompactionPass): void {
-    const pass = encoder.beginComputePass({ label: step.pipeline.label });
-    pass.setPipeline(step.pipeline);
-    pass.setBindGroup(0, step.bindGroup);
-    pass.dispatchWorkgroupsIndirect(this.dispatchArgs, 0);
-    pass.end();
-  }
-
   public destroy(): void {
-    this.oldToNew.destroy();
     this.scan.destroy();
-    this.scanCount.destroy();
-    for (const buffer of this.scratchBuffers) buffer.destroy();
+    this.bufferOwner.destroy();
   }
 }

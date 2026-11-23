@@ -1,4 +1,5 @@
 import { BODY_STRIDE, packBodies } from "./Body";
+import { createComputePass, encodeComputePass, type ComputePass } from "./gpu/ComputePass";
 import type Scene from "./Scene";
 import { SimulationUniforms } from "./Scene";
 import { finishStepWgsl } from "./shaders";
@@ -21,8 +22,7 @@ export default class Simulation {
   private readonly absorption: AbsorptionStage;
   private readonly compaction: CompactionStage;
   private readonly explosion: ExplosionStage;
-  private readonly finishStepPipeline: GPUComputePipeline;
-  private readonly finishStepBindGroup: GPUBindGroup;
+  private readonly finishStep: ComputePass;
 
   constructor(device: GPUDevice, scene: Scene) {
     this.device = device;
@@ -69,9 +69,10 @@ export default class Simulation {
     this.compaction = new CompactionStage(device, this.buffers);
     this.explosion = new ExplosionStage(device, this.buffers);
 
-    this.finishStepPipeline = device.createComputePipeline({
+    this.finishStep = createComputePass(device, {
       label: "finish step pipeline",
-      layout: "auto",
+      bindGroupLabel: "finish step bind group",
+      passLabel: "finish step pass",
       compute: {
         module: device.createShaderModule({
           label: "finish step shader",
@@ -79,14 +80,7 @@ export default class Simulation {
         }),
         entryPoint: "finishStep",
       },
-    });
-    this.finishStepBindGroup = device.createBindGroup({
-      label: "finish step bind group",
-      layout: this.finishStepPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this.buffers.params } },
-        { binding: 1, resource: { buffer: this.buffers.dispatchArgs } },
-      ],
+      buffers: [this.buffers.params, this.buffers.dispatchArgs],
     });
 
     this.reset(scene);
@@ -119,15 +113,7 @@ export default class Simulation {
     this.absorption.encode(encoder, this.algorithms.absorption);
     this.compaction.encode(encoder, this.algorithms.compaction);
     this.explosion.encode(encoder, this.algorithms.explosion);
-    this.encodeFinishStep(encoder);
-  }
-
-  private encodeFinishStep(encoder: GPUCommandEncoder): void {
-    const pass = encoder.beginComputePass({ label: "finish step pass" });
-    pass.setPipeline(this.finishStepPipeline);
-    pass.setBindGroup(0, this.finishStepBindGroup);
-    pass.dispatchWorkgroups(1);
-    pass.end();
+    encodeComputePass(encoder, this.finishStep, 1);
   }
 
   public reset(scene: Scene): void {

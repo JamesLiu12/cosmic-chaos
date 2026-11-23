@@ -1,130 +1,86 @@
 import { prefixScanPrepareWgsl, prefixScanWgsl } from "../shaders";
-
-type ScanPass = {
-  pipeline: GPUComputePipeline;
-  bindGroup: GPUBindGroup;
-};
+import { createComputePass, encodeComputePass, type ComputePass } from "./ComputePass";
 
 export default class PrefixScan {
   private readonly levelInfo: GPUBuffer;
-  private readonly preparePipeline: GPUComputePipeline;
-  private readonly prepareBindGroup: GPUBindGroup;
-  private readonly scanPasses: ScanPass[] = [];
-  private readonly offsetPasses: ScanPass[] = [];
+  private readonly prepare: ComputePass;
+  private readonly scanPasses: ComputePass[] = [];
+  private readonly offsetPasses: ComputePass[] = [];
   private readonly scratchBuffers: GPUBuffer[] = [];
 
   constructor(device: GPUDevice, input: GPUBuffer, output: GPUBuffer, count: GPUBuffer) {
-    const createScratch = (label: string, elements: number): GPUBuffer => {
+    const u32Size = Uint32Array.BYTES_PER_ELEMENT;
+    const createScratch = (label: string, size: number, extraUsage = 0): GPUBuffer => {
       const buffer = device.createBuffer({
         label,
-        size: elements * Uint32Array.BYTES_PER_ELEMENT,
-        usage: GPUBufferUsage.STORAGE,
+        size,
+        usage: GPUBufferUsage.STORAGE | extraUsage,
       });
       this.scratchBuffers.push(buffer);
       return buffer;
     };
 
     const levels: { input: GPUBuffer; output: GPUBuffer; sums: GPUBuffer }[] = [];
-    let capacity = input.size / Uint32Array.BYTES_PER_ELEMENT;
+    let capacity = input.size / u32Size;
     let levelInput = input;
     let levelOutput = output;
     while (true) {
       const blockCount = Math.ceil(capacity / 256);
-      const sums = createScratch(`scan block sums ${levels.length}`, blockCount);
+      const sums = createScratch(`scan block sums ${levels.length}`, blockCount * u32Size);
       levels.push({ input: levelInput, output: levelOutput, sums });
       if (blockCount === 1) break;
       capacity = blockCount;
       levelInput = sums;
-      levelOutput = createScratch(`scan prefixes ${levels.length}`, capacity);
+      levelOutput = createScratch(`scan prefixes ${levels.length}`, capacity * u32Size);
     }
 
-    this.levelInfo = device.createBuffer({
-      label: "scan level counts and dispatch args",
-      size: levels.length * 16,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT,
-    });
-    this.preparePipeline = device.createComputePipeline({
+    this.levelInfo = createScratch(
+      "scan level counts and dispatch args", levels.length * 16, GPUBufferUsage.INDIRECT,
+    );
+    this.prepare = createComputePass(device, {
       label: "scan prepare pipeline",
-      layout: "auto",
+      passLabel: "scan prepare pass",
       compute: {
         module: device.createShaderModule({ code: prefixScanPrepareWgsl }),
         entryPoint: "prepareScan",
       },
-    });
-    this.prepareBindGroup = device.createBindGroup({
-      layout: this.preparePipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: count } },
-        { binding: 1, resource: { buffer: this.levelInfo } },
-      ],
+      buffers: { 0: count, 1: this.levelInfo },
     });
 
     const module = device.createShaderModule({ label: "exclusive scan shader", code: prefixScanWgsl });
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i];
-      const pipeline = device.createComputePipeline({
+      this.scanPasses.push(createComputePass(device, {
         label: `scan blocks pipeline ${i}`,
-        layout: "auto",
+        passLabel: `scan/blocks/${i} pass`,
         compute: { module, entryPoint: "scanBlocks", constants: { SCAN_LEVEL: i } },
-      });
-      const bindGroup = device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: level.input } },
-          { binding: 1, resource: { buffer: level.output } },
-          { binding: 2, resource: { buffer: level.sums } },
-          { binding: 4, resource: { buffer: this.levelInfo } },
-        ],
-      });
-      this.scanPasses.push({ pipeline, bindGroup });
+        buffers: { 0: level.input, 1: level.output, 2: level.sums, 4: this.levelInfo },
+      }));
 
       if (i + 1 < levels.length) {
-        const offsetPipeline = device.createComputePipeline({
+        this.offsetPasses.push(createComputePass(device, {
           label: `scan offsets pipeline ${i}`,
-          layout: "auto",
+          passLabel: `scan/offsets/${i} pass`,
           compute: { module, entryPoint: "addBlockOffsets", constants: { SCAN_LEVEL: i } },
-        });
-        const offsetBindGroup = device.createBindGroup({
-          layout: offsetPipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 1, resource: { buffer: level.output } },
-            { binding: 3, resource: { buffer: levels[i + 1].output } },
-            { binding: 4, resource: { buffer: this.levelInfo } },
-          ],
-        });
-        this.offsetPasses.push({ pipeline: offsetPipeline, bindGroup: offsetBindGroup });
+          buffers: { 1: level.output, 3: levels[i + 1].output, 4: this.levelInfo },
+        }));
       }
     }
   }
 
   public encode(encoder: GPUCommandEncoder): void {
-    const prepare = encoder.beginComputePass({ label: "scan prepare pass" });
-    prepare.setPipeline(this.preparePipeline);
-    prepare.setBindGroup(0, this.prepareBindGroup);
-    prepare.dispatchWorkgroups(1);
-    prepare.end();
+    encodeComputePass(encoder, this.prepare, 1);
 
     for (let i = 0; i < this.scanPasses.length; i++) {
-      const step = this.scanPasses[i];
-      const pass = encoder.beginComputePass({ label: `scan/blocks/${i} pass` });
-      pass.setPipeline(step.pipeline);
-      pass.setBindGroup(0, step.bindGroup);
-      pass.dispatchWorkgroupsIndirect(this.levelInfo, i * 16 + 4);
-      pass.end();
+      encodeComputePass(encoder, this.scanPasses[i], this.levelInfo, i * 16 + 4);
     }
 
     for (let i = this.offsetPasses.length - 1; i >= 0; i--) {
-      const step = this.offsetPasses[i];
-      const pass = encoder.beginComputePass({ label: `scan/offsets/${i} pass` });
-      pass.setPipeline(step.pipeline);
-      pass.setBindGroup(0, step.bindGroup);
-      pass.dispatchWorkgroupsIndirect(this.levelInfo, i * 16 + 4);
-      pass.end();
+      encodeComputePass(encoder, this.offsetPasses[i], this.levelInfo, i * 16 + 4);
     }
   }
 
   public destroy(): void {
-    this.levelInfo.destroy();
     for (const buffer of this.scratchBuffers) buffer.destroy();
   }
 }
