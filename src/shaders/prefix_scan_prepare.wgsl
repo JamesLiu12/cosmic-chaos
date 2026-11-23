@@ -5,6 +5,8 @@ struct ScanLevel {
     dispatchZ: u32,
 }
 
+override SCAN_BLOCK_SIZE: u32;
+
 @group(0) @binding(0)
 var<storage, read> inputCount: u32;
 
@@ -15,7 +17,7 @@ var<storage, read_write> levels: array<ScanLevel>;
 fn prepareScan() {
     var count = inputCount;
     for (var level = 0u; level < arrayLength(&levels); level++) {
-        let blockCount = (count + 255u) / 256u;
+        let blockCount = (count + SCAN_BLOCK_SIZE - 1u) / SCAN_BLOCK_SIZE;
         levels[level] = ScanLevel(count, blockCount, 1u, 1u);
         count = blockCount;
     }

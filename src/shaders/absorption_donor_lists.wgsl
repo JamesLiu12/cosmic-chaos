@@ -17,7 +17,7 @@ fn isDirectDonor(donorIndex: u32, receiverIndex: u32) -> bool {
     return donorIndex != receiverIndex && collisionCandidates[receiverIndex] == receiverIndex;
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn countDonors(@builtin(global_invocation_id) id: vec3<u32>) {
     let donorIndex = id.x;
     if (donorIndex >= params.bodyCount) {
@@ -30,7 +30,7 @@ fn countDonors(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn scatterDonors(@builtin(global_invocation_id) id: vec3<u32>) {
     let donorIndex = id.x;
     if (donorIndex >= params.bodyCount) {
@@ -44,7 +44,7 @@ fn scatterDonors(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn resolveReceivers(@builtin(global_invocation_id) id: vec3<u32>) {
     let receiverIndex = id.x;
     if (receiverIndex >= params.bodyCount || collisionCandidates[receiverIndex] != receiverIndex) {
@@ -69,7 +69,7 @@ fn resolveReceivers(@builtin(global_invocation_id) id: vec3<u32>) {
     receiverAccepted[receiverIndex] = select(0u, 1u, transfer.accepted);
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn updateDonors(@builtin(global_invocation_id) id: vec3<u32>) {
     let donorIndex = id.x;
     if (donorIndex >= params.bodyCount) {

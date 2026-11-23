@@ -7,11 +7,10 @@ var<storage, read_write> outputBodies: array<Body>;
 @group(0) @binding(2)
 var<uniform> params: SimulationUniforms;
 
-const TILE_SIZE: u32 = 64u;
-var<workgroup> tilePositionMass: array<vec4<f32>, TILE_SIZE>;
-var<workgroup> tileRadius: array<f32, TILE_SIZE>;
+var<workgroup> tilePositionMass: array<vec4<f32>, BODY_WORKGROUP_SIZE>;
+var<workgroup> tileRadius: array<f32, BODY_WORKGROUP_SIZE>;
 
-@compute @workgroup_size(TILE_SIZE)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn gravityTiled(
     @builtin(global_invocation_id) invocationId: vec3<u32>,
     @builtin(local_invocation_index) localIndex: u32,
@@ -26,7 +25,7 @@ fn gravityTiled(
     }
     var acceleration = vec3<f32>(0.0);
 
-    for (var base = 0u; base < count; base += TILE_SIZE) {
+    for (var base = 0u; base < count; base += BODY_WORKGROUP_SIZE) {
         let sourceIndex = base + localIndex;
         if (sourceIndex < count) {
             let other = inputBodies[sourceIndex];
@@ -39,7 +38,7 @@ fn gravityTiled(
         workgroupBarrier();
 
         if (isValidBody) {
-            let tileCount = min(TILE_SIZE, count - base);
+            let tileCount = min(BODY_WORKGROUP_SIZE, count - base);
             for (var j = 0u; j < tileCount; j++) {
                 if (base + j == i) {
                     continue;

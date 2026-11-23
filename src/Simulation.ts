@@ -8,6 +8,7 @@ import CollisionStage from "./simulation/CollisionStage";
 import CompactionStage from "./simulation/CompactionStage";
 import ExplosionStage from "./simulation/ExplosionStage";
 import GravityStage from "./simulation/GravityStage";
+import { BODY_DISPATCH_CONSTANTS, BODY_WORKGROUP_SIZE } from "./simulation/dispatch";
 import { BASELINE_ALGORITHMS } from "./simulation/types";
 import type { SimulationAlgorithms, SimulationBuffers } from "./simulation/types";
 
@@ -79,6 +80,7 @@ export default class Simulation {
           code: finishStepWgsl,
         }),
         entryPoint: "finishStep",
+        constants: BODY_DISPATCH_CONSTANTS,
       },
       buffers: [this.buffers.params, this.buffers.dispatchArgs],
     });
@@ -140,7 +142,7 @@ export default class Simulation {
     this.device.queue.writeBuffer(
       this.buffers.dispatchArgs,
       0,
-      new Uint32Array([Math.ceil(bodyCount / 64), 1, 1]),
+      new Uint32Array([Math.ceil(bodyCount / BODY_WORKGROUP_SIZE), 1, 1]),
     );
 
     const candidates = new Uint32Array(capacity);

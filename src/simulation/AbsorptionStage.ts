@@ -2,6 +2,7 @@ import BufferOwner from "../gpu/BufferOwner";
 import { createComputePass, encodeComputePass, type ComputePass } from "../gpu/ComputePass";
 import PrefixScan from "../gpu/PrefixScan";
 import { absorptionDonorListsWgsl, absorptionFullScanWgsl } from "../shaders";
+import { BODY_DISPATCH_CONSTANTS } from "./dispatch";
 import type { SimulationAlgorithms, SimulationBuffers } from "./types";
 
 export default class AbsorptionStage {
@@ -63,22 +64,22 @@ export default class AbsorptionStage {
     });
     this.fullScan = createComputePass(device, {
       label: "absorption pass",
-      compute: { module: fullScanModule, entryPoint: "applyAbsorption" },
+      compute: { module: fullScanModule, entryPoint: "applyAbsorption", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesA, 1: bodiesB, 2: collisionCandidates, 3: params },
     });
     this.countDonors = createComputePass(device, {
       label: "absorption/donor-lists/countDonors",
-      compute: { module: donorModule, entryPoint: "countDonors" },
+      compute: { module: donorModule, entryPoint: "countDonors", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 2: collisionCandidates, 3: params, 4: this.donorCounts, 6: donorRanks },
     });
     this.scatterDonors = createComputePass(device, {
       label: "absorption/donor-lists/scatterDonors",
-      compute: { module: donorModule, entryPoint: "scatterDonors" },
+      compute: { module: donorModule, entryPoint: "scatterDonors", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 2: collisionCandidates, 3: params, 5: listOffsets, 6: donorRanks, 7: donorIndices },
     });
     this.resolveReceivers = createComputePass(device, {
       label: "absorption/donor-lists/resolveReceivers",
-      compute: { module: donorModule, entryPoint: "resolveReceivers" },
+      compute: { module: donorModule, entryPoint: "resolveReceivers", constants: BODY_DISPATCH_CONSTANTS },
       buffers: {
         0: bodiesA,
         1: bodiesB,
@@ -92,7 +93,7 @@ export default class AbsorptionStage {
     });
     this.updateDonors = createComputePass(device, {
       label: "absorption/donor-lists/updateDonors",
-      compute: { module: donorModule, entryPoint: "updateDonors" },
+      compute: { module: donorModule, entryPoint: "updateDonors", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesA, 1: bodiesB, 2: collisionCandidates, 3: params, 8: receiverAccepted },
     });
   }

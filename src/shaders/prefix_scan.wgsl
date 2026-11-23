@@ -6,7 +6,7 @@ struct ScanLevel {
 }
 
 override SCAN_LEVEL: u32 = 0u;
-const BLOCK_SIZE: u32 = 256u;
+override SCAN_BLOCK_SIZE: u32;
 
 @group(0) @binding(0)
 var<storage, read> inputValues: array<u32>;
@@ -23,15 +23,15 @@ var<storage, read> blockOffsets: array<u32>;
 @group(0) @binding(4)
 var<storage, read> levels: array<ScanLevel>;
 
-var<workgroup> values: array<u32, BLOCK_SIZE>;
+var<workgroup> values: array<u32, SCAN_BLOCK_SIZE>;
 
-@compute @workgroup_size(128)
+@compute @workgroup_size(SCAN_BLOCK_SIZE / 2u)
 fn scanBlocks(
     @builtin(workgroup_id) groupId: vec3<u32>,
     @builtin(local_invocation_index) localIndex: u32,
 ) {
     let count = levels[SCAN_LEVEL].count;
-    let first = groupId.x * BLOCK_SIZE + 2u * localIndex;
+    let first = groupId.x * SCAN_BLOCK_SIZE + 2u * localIndex;
 
     values[2u * localIndex] = 0u;
     values[2u * localIndex + 1u] = 0u;
@@ -44,7 +44,7 @@ fn scanBlocks(
 
     // Up-sweep
     var stride = 1u;
-    for (var nodes = BLOCK_SIZE / 2u; nodes > 0u; nodes /= 2u) {
+    for (var nodes = SCAN_BLOCK_SIZE / 2u; nodes > 0u; nodes /= 2u) {
         workgroupBarrier();
         if (localIndex < nodes) {
             let left = stride * (2u * localIndex + 1u) - 1u;
@@ -56,12 +56,12 @@ fn scanBlocks(
 
     workgroupBarrier();
     if (localIndex == 0u) {
-        blockSums[groupId.x] = values[BLOCK_SIZE - 1u];
-        values[BLOCK_SIZE - 1u] = 0u;
+        blockSums[groupId.x] = values[SCAN_BLOCK_SIZE - 1u];
+        values[SCAN_BLOCK_SIZE - 1u] = 0u;
     }
 
     // Down-sweep
-    for (var nodes = 1u; nodes < BLOCK_SIZE; nodes *= 2u) {
+    for (var nodes = 1u; nodes < SCAN_BLOCK_SIZE; nodes *= 2u) {
         stride /= 2u;
         workgroupBarrier();
         if (localIndex < nodes) {
@@ -82,13 +82,13 @@ fn scanBlocks(
     }
 }
 
-@compute @workgroup_size(128)
+@compute @workgroup_size(SCAN_BLOCK_SIZE / 2u)
 fn addBlockOffsets(
     @builtin(workgroup_id) groupId: vec3<u32>,
     @builtin(local_invocation_index) localIndex: u32,
 ) {
     let count = levels[SCAN_LEVEL].count;
-    let first = groupId.x * BLOCK_SIZE + 2u * localIndex;
+    let first = groupId.x * SCAN_BLOCK_SIZE + 2u * localIndex;
     let blockOffset = blockOffsets[groupId.x];
     if (first < count) {
         outputValues[first] += blockOffset;

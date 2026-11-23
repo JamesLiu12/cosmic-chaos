@@ -15,7 +15,7 @@ var<storage, read_write> starLights: WritableStarLights;
 @group(0) @binding(3)
 var<uniform> renderParams: RenderParams;
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn collectStarLights(@builtin(global_invocation_id) id: vec3<u32>) {
     if (id.x >= params.bodyCount) {
         return;

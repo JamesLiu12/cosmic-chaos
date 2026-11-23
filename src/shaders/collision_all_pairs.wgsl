@@ -1,4 +1,4 @@
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn detectCollisions(
     @builtin(global_invocation_id) invocationId: vec3<u32>,
 ) {

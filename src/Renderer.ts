@@ -1,6 +1,7 @@
 import { BODY_STRIDE } from "./Body";
 import Camera from "./Camera";
 import { bodiesDebugWgsl, bodiesWgsl, collectStarLightsWgsl, postProcessWgsl } from "./shaders";
+import { BODY_DISPATCH_CONSTANTS } from "./simulation/dispatch";
 import { createSphereMesh } from "./Sphere";
 import type WebGpuContext from "./WebGpuContext";
 
@@ -126,7 +127,8 @@ export default class Renderer {
       layout: "auto",
       compute: {
         module: device.createShaderModule({ code: collectStarLightsWgsl }),
-        entryPoint: "collectStarLights"
+        entryPoint: "collectStarLights",
+        constants: BODY_DISPATCH_CONSTANTS
       }
     });
 

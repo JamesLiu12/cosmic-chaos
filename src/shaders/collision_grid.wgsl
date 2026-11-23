@@ -1,6 +1,5 @@
 override GRID_SIDE: u32;
 
-const BODY_WORKGROUP_SIZE: u32 = 64u;
 const MAX_POSITION: f32 = 3.4e+38;
 const MIN_GRID_SPAN: f32 = 0.0001;
 
@@ -89,7 +88,7 @@ fn reduceBodyBounds(
 
 @compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn finishGridBounds(@builtin(local_invocation_index) localIndex: u32) {
-    let groupCount = (params.bodyCount + BODY_WORKGROUP_SIZE - 1u) / BODY_WORKGROUP_SIZE;
+    let groupCount = bodyWorkgroupCount(params.bodyCount);
     var bounds = EMPTY_BOUNDS;
     for (var groupIndex = localIndex; groupIndex < groupCount; groupIndex += BODY_WORKGROUP_SIZE) {
         bounds = mergeBounds(bounds, groupBounds[groupIndex]);
@@ -116,7 +115,7 @@ fn cellIndex(cell: vec3<u32>) -> u32 {
     return cell.x + GRID_SIDE * (cell.y + GRID_SIDE * cell.z);
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn countCells(@builtin(global_invocation_id) id: vec3<u32>) {
     let bodyIndex = id.x;
     if (bodyIndex >= params.bodyCount) {
@@ -133,7 +132,7 @@ fn countCells(@builtin(global_invocation_id) id: vec3<u32>) {
     cellRanks[bodyIndex] = vec2<u32>(bucket, localRank);
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn scatterCells(@builtin(global_invocation_id) id: vec3<u32>) {
     let bodyIndex = id.x;
     if (bodyIndex >= params.bodyCount) {
@@ -150,7 +149,7 @@ fn scatterCells(@builtin(global_invocation_id) id: vec3<u32>) {
     cellEntries[slot] = CellEntry(body.position, body.radius, body.mass, bodyIndex);
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn detectGridCollisions(@builtin(global_invocation_id) id: vec3<u32>) {
     let bodyIndex = id.x;
     if (bodyIndex >= params.bodyCount) {

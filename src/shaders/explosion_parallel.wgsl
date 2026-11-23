@@ -1,3 +1,7 @@
+const EXPLOSION_BODY_WORKGROUP_SIZE: u32 = 64u;
+const FRAGMENT_WORKGROUP_SIZE: u32 = 64u;
+const MAX_EMISSION_GROUPS_X: u32 = 65535u;
+
 struct ExplosionState {
     eventCount: u32,
     approvedEnd: u32,
@@ -60,7 +64,11 @@ fn nextProgress(parent: Body) -> f32 {
     return min(1.0, parent.collapseProgress + params.fixedDt / COLLAPSE_DURATION);
 }
 
-@compute @workgroup_size(64)
+fn ceilDiv(value: u32, divisor: u32) -> u32 {
+    return (value + divisor - 1u) / divisor;
+}
+
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn classify(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     if (i >= params.bodyCount) {
@@ -76,7 +84,7 @@ fn classify(@builtin(global_invocation_id) id: vec3<u32>) {
     flags[i] = select(0u, 1u, collapsing);
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn packEvents(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     let bodyCount = params.bodyCount;
@@ -123,14 +131,20 @@ fn allocateEvents() {
     state.finalCount = bodyCount + appendedCount;
 
     let hasEvents = state.eventCount != 0u;
-    dispatches.response = DispatchSize(select(0u, (bodyCount + 63u) / 64u, hasEvents), 1u, 1u);
-    dispatches.publish = DispatchSize(select(0u, (state.finalCount + 63u) / 64u, hasEvents), 1u, 1u);
+    let responseGroups = select(0u, ceilDiv(bodyCount, EXPLOSION_BODY_WORKGROUP_SIZE), hasEvents);
+    let publishGroups = select(0u, ceilDiv(state.finalCount, EXPLOSION_BODY_WORKGROUP_SIZE), hasEvents);
+    dispatches.response = DispatchSize(responseGroups, 1u, 1u);
+    dispatches.publish = DispatchSize(publishGroups, 1u, 1u);
 
     let emissionGroups = select(0u, lo, appendedCount > 0u);
-    dispatches.emission = DispatchSize(min(emissionGroups, 65535u), (emissionGroups + 65534u) / 65535u, 1u);
+    dispatches.emission = DispatchSize(
+        min(emissionGroups, MAX_EMISSION_GROUPS_X),
+        ceilDiv(emissionGroups, MAX_EMISSION_GROUPS_X),
+        1u,
+    );
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(EXPLOSION_BODY_WORKGROUP_SIZE)
 fn applyResponses(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     if (i >= params.bodyCount) {
@@ -158,14 +172,14 @@ fn applyResponses(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 
 var<workgroup> groupFragmentCount: u32;
-var<workgroup> weightSums: array<f32, 64>;
+var<workgroup> weightSums: array<f32, FRAGMENT_WORKGROUP_SIZE>;
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(FRAGMENT_WORKGROUP_SIZE)
 fn emitFragments(
     @builtin(workgroup_id) group: vec3<u32>,
     @builtin(local_invocation_index) lane: u32,
 ) {
-    let eventIndex = group.x + group.y * 65535u;
+    let eventIndex = group.x + group.y * MAX_EMISSION_GROUPS_X;
     if (lane == 0u) {
         groupFragmentCount = 0u;
         if (eventIndex < state.approvedEnd && appendRequests[eventIndex] > 0u) {
@@ -183,11 +197,11 @@ fn emitFragments(
     let eventSeed = seedForParent(parent);
 
     var localWeightSum = 0.0;
-    for (var fragmentIndex = lane; fragmentIndex < fragmentCount; fragmentIndex += 64u) {
+    for (var fragmentIndex = lane; fragmentIndex < fragmentCount; fragmentIndex += FRAGMENT_WORKGROUP_SIZE) {
         localWeightSum += fragmentWeight(fragmentSeed(eventSeed, fragmentIndex));
     }
     weightSums[lane] = localWeightSum;
-    for (var stride = 32u; stride > 0u; stride /= 2u) {
+    for (var stride = FRAGMENT_WORKGROUP_SIZE / 2u; stride > 0u; stride /= 2u) {
         workgroupBarrier();
         if (lane < stride) {
             weightSums[lane] += weightSums[lane + stride];
@@ -198,7 +212,7 @@ fn emitFragments(
     let basis = fragmentBasis(parent);
     let phase = 2.0 * PI * random01(eventSeed ^ 5u);
     let firstAppendSlot = params.bodyCount + appendOffsets[eventIndex];
-    for (var fragmentIndex = lane; fragmentIndex < fragmentCount; fragmentIndex += 64u) {
+    for (var fragmentIndex = lane; fragmentIndex < fragmentCount; fragmentIndex += FRAGMENT_WORKGROUP_SIZE) {
         let seed = fragmentSeed(eventSeed, fragmentIndex);
         let mass = parent.mass * (fragmentWeight(seed) / totalWeight);
         let slot = select(firstAppendSlot + fragmentIndex - 1u, parentIndex, fragmentIndex == 0u);
@@ -206,7 +220,7 @@ fn emitFragments(
     }
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(EXPLOSION_BODY_WORKGROUP_SIZE)
 fn publishBodies(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     if (i >= state.finalCount) {

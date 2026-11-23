@@ -2,6 +2,7 @@ import BufferOwner from "../gpu/BufferOwner";
 import { createComputePass, encodeComputePass, type ComputePass } from "../gpu/ComputePass";
 import PrefixScan from "../gpu/PrefixScan";
 import { compactScanWgsl, compactSerialWgsl } from "../shaders";
+import { BODY_DISPATCH_CONSTANTS } from "./dispatch";
 import type { SimulationAlgorithms, SimulationBuffers } from "./types";
 
 export default class CompactionStage {
@@ -68,17 +69,17 @@ export default class CompactionStage {
     });
     this.markPass = createComputePass(device, {
       label: "compaction/scan/markAlive pass",
-      compute: { module, entryPoint: "markAlive" },
+      compute: { module, entryPoint: "markAlive", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesB, 3: params, 5: alive },
     });
     this.scatterPass = createComputePass(device, {
       label: "compaction/scan/scatterBodies pass",
-      compute: { module, entryPoint: "scatterBodies" },
+      compute: { module, entryPoint: "scatterBodies", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesB, 1: bodiesA, 2: collisionCandidates, 3: params, 5: alive, 6: prefixes, 7: candidateScratch },
     });
     this.publishPass = createComputePass(device, {
       label: "compaction/scan/publishCandidates pass",
-      compute: { module, entryPoint: "publishCandidates" },
+      compute: { module, entryPoint: "publishCandidates", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 2: collisionCandidates, 3: params, 4: this.scanCount, 5: alive, 6: prefixes, 7: candidateScratch },
     });
   }

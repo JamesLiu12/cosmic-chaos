@@ -2,10 +2,10 @@ import BufferOwner from "../gpu/BufferOwner";
 import { createComputePass, encodeComputePass, type ComputePass } from "../gpu/ComputePass";
 import PrefixScan from "../gpu/PrefixScan";
 import { collisionGridWgsl, collisionAllPairsWgsl } from "../shaders";
+import { BODY_DISPATCH_CONSTANTS, BODY_WORKGROUP_SIZE } from "./dispatch";
 import type { SimulationAlgorithms, SimulationBuffers } from "./types";
 
 const GRID_SIDE = 32;
-const BODY_WORKGROUP_SIZE = 64;
 const CELL_ENTRY_STRIDE = 32;
 const GRID_BOUNDS_STRIDE = 32;
 
@@ -70,15 +70,15 @@ export default class CollisionStage {
     const allPairsModule = device.createShaderModule({ label: "collision detection shader", code: collisionAllPairsWgsl });
     this.allPairs = createComputePass(device, {
       label: "collision detection pass",
-      compute: { module: allPairsModule, entryPoint: "detectCollisions" },
+      compute: { module: allPairsModule, entryPoint: "detectCollisions", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesA, 1: collisionCandidates, 2: params },
     });
 
     const gridModule = device.createShaderModule({ label: "collision grid shader", code: collisionGridWgsl });
-    const constants = { GRID_SIDE };
+    const constants = { ...BODY_DISPATCH_CONSTANTS, GRID_SIDE };
     this.reduceBodyBounds = createComputePass(device, {
       label: "collision/grid/reduce bounds pass",
-      compute: { module: gridModule, entryPoint: "reduceBodyBounds" },
+      compute: { module: gridModule, entryPoint: "reduceBodyBounds", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesA, 2: params, 8: groupBounds },
     });
     this.finishGridBounds = createComputePass(device, {
@@ -93,7 +93,7 @@ export default class CollisionStage {
     });
     this.scatterCells = createComputePass(device, {
       label: "collision/grid/scatter pass",
-      compute: { module: gridModule, entryPoint: "scatterCells" },
+      compute: { module: gridModule, entryPoint: "scatterCells", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesA, 2: params, 4: cellOffsets, 5: cellRanks, 6: cellEntries },
     });
     this.queryGrid = createComputePass(device, {

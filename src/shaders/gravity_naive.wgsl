@@ -7,7 +7,7 @@ var<storage, read_write> outputBodies: array<Body>;
 @group(0) @binding(2)
 var<uniform> params: SimulationUniforms;
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn driftHalf(
     @builtin(global_invocation_id) invocationId: vec3<u32>
 ) {
@@ -24,7 +24,7 @@ fn driftHalf(
 }
 
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn gravityNaive(
     @builtin(global_invocation_id) invocationId: vec3<u32>
 ) {

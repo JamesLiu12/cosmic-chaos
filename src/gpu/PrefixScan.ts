@@ -1,6 +1,8 @@
 import { prefixScanPrepareWgsl, prefixScanWgsl } from "../shaders";
 import { createComputePass, encodeComputePass, type ComputePass } from "./ComputePass";
 
+const SCAN_BLOCK_SIZE = 256;
+
 export default class PrefixScan {
   private readonly levelInfo: GPUBuffer;
   private readonly prepare: ComputePass;
@@ -25,7 +27,7 @@ export default class PrefixScan {
     let levelInput = input;
     let levelOutput = output;
     while (true) {
-      const blockCount = Math.ceil(capacity / 256);
+      const blockCount = Math.ceil(capacity / SCAN_BLOCK_SIZE);
       const sums = createScratch(`scan block sums ${levels.length}`, blockCount * u32Size);
       levels.push({ input: levelInput, output: levelOutput, sums });
       if (blockCount === 1) break;
@@ -43,6 +45,7 @@ export default class PrefixScan {
       compute: {
         module: device.createShaderModule({ code: prefixScanPrepareWgsl }),
         entryPoint: "prepareScan",
+        constants: { SCAN_BLOCK_SIZE },
       },
       buffers: { 0: count, 1: this.levelInfo },
     });
@@ -50,10 +53,11 @@ export default class PrefixScan {
     const module = device.createShaderModule({ label: "exclusive scan shader", code: prefixScanWgsl });
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i];
+      const constants = { SCAN_BLOCK_SIZE, SCAN_LEVEL: i };
       this.scanPasses.push(createComputePass(device, {
         label: `scan blocks pipeline ${i}`,
         passLabel: `scan/blocks/${i} pass`,
-        compute: { module, entryPoint: "scanBlocks", constants: { SCAN_LEVEL: i } },
+        compute: { module, entryPoint: "scanBlocks", constants },
         buffers: { 0: level.input, 1: level.output, 2: level.sums, 4: this.levelInfo },
       }));
 
@@ -61,7 +65,7 @@ export default class PrefixScan {
         this.offsetPasses.push(createComputePass(device, {
           label: `scan offsets pipeline ${i}`,
           passLabel: `scan/offsets/${i} pass`,
-          compute: { module, entryPoint: "addBlockOffsets", constants: { SCAN_LEVEL: i } },
+          compute: { module, entryPoint: "addBlockOffsets", constants },
           buffers: { 1: level.output, 3: levels[i + 1].output, 4: this.levelInfo },
         }));
       }

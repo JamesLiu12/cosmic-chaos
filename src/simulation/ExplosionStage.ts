@@ -2,6 +2,7 @@ import BufferOwner from "../gpu/BufferOwner";
 import { createComputePass, encodeComputePass, type ComputePass } from "../gpu/ComputePass";
 import PrefixScan from "../gpu/PrefixScan";
 import { explosionParallelWgsl, explosionSerialWgsl } from "../shaders";
+import { BODY_DISPATCH_CONSTANTS } from "./dispatch";
 import type { SimulationAlgorithms, SimulationBuffers } from "./types";
 
 export default class ExplosionStage {
@@ -84,12 +85,12 @@ export default class ExplosionStage {
     const module = device.createShaderModule({ label: "parallel explosion shader", code: explosionParallelWgsl });
     this.classify = createComputePass(device, {
       label: "explosion/parallel/classify",
-      compute: { module, entryPoint: "classify" },
+      compute: { module, entryPoint: "classify", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesA, 2: params, 4: flags },
     });
     this.pack = createComputePass(device, {
       label: "explosion/parallel/packEvents",
-      compute: { module, entryPoint: "packEvents" },
+      compute: { module, entryPoint: "packEvents", constants: BODY_DISPATCH_CONSTANTS },
       buffers: { 0: bodiesA, 2: params, 4: flags, 5: ranks, 6: parents, 7: requests, 9: this.state },
     });
     this.allocate = createComputePass(device, {

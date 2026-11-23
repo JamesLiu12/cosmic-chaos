@@ -22,7 +22,7 @@ var<storage, read> prefixes: array<u32>;
 @group(0) @binding(7)
 var<storage, read_write> candidateScratch: array<u32>;
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn markAlive(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     if (i >= params.bodyCount) {
@@ -31,7 +31,7 @@ fn markAlive(@builtin(global_invocation_id) id: vec3<u32>) {
     alive[i] = select(0u, 1u, absorbedBodies[i].mass != 0.0);
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn scatterBodies(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     if (i >= params.bodyCount) {
@@ -61,7 +61,7 @@ fn compactedCount() -> u32 {
     return prefixes[oldCount - 1u] + alive[oldCount - 1u];
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn publishCandidates(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     let newCount = compactedCount();

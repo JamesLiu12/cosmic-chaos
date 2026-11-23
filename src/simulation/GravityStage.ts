@@ -1,5 +1,6 @@
 import { createComputePass, encodeComputePass, type ComputePass } from "../gpu/ComputePass";
 import { gravityNaiveWgsl, gravityTiledWgsl } from "../shaders";
+import { BODY_DISPATCH_CONSTANTS } from "./dispatch";
 import type { SimulationAlgorithms, SimulationBuffers } from "./types";
 
 export default class GravityStage {
@@ -19,7 +20,7 @@ export default class GravityStage {
       label: "drift half pipeline",
       bindGroupLabel: "drift half bind group",
       passLabel: "drift half pass",
-      compute: { module, entryPoint: "driftHalf" },
+      compute: { module, entryPoint: "driftHalf", constants: BODY_DISPATCH_CONSTANTS },
       buffers: [buffers.bodiesA, buffers.bodiesB, buffers.params],
     });
     const gravityBuffers = [buffers.bodiesB, buffers.bodiesA, buffers.params];
@@ -28,7 +29,7 @@ export default class GravityStage {
         label: "naive gravity pipeline",
         bindGroupLabel: "naive gravity bind group",
         passLabel: "naive gravity pass",
-        compute: { module, entryPoint: "gravityNaive" },
+        compute: { module, entryPoint: "gravityNaive", constants: BODY_DISPATCH_CONSTANTS },
         buffers: gravityBuffers,
       }),
       tiled: createComputePass(device, {
@@ -41,6 +42,7 @@ export default class GravityStage {
             code: gravityTiledWgsl,
           }),
           entryPoint: "gravityTiled",
+          constants: BODY_DISPATCH_CONSTANTS,
         },
         buffers: gravityBuffers,
       }),

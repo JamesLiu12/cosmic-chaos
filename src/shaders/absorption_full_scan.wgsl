@@ -1,4 +1,4 @@
-@compute @workgroup_size(64)
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn applyAbsorption(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     if (i >= params.bodyCount) {
