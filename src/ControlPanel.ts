@@ -4,7 +4,7 @@ import type CameraController from "./CameraController";
 import type Renderer from "./Renderer";
 import type { SceneOptions } from "./Scene";
 import type Simulation from "./Simulation";
-import { BASELINE_ALGORITHMS } from "./simulation/types";
+import { BASELINE_ALGORITHMS, OPTIMIZED_ALGORITHMS } from "./simulation/types";
 import type { SimulationAlgorithms } from "./simulation/types";
 
 export function createControlPanel(
@@ -121,7 +121,7 @@ export function createControlPanel(
   starMass.onChange(() => explosionMass.min(physics.starMass + 1));
   explosionMass.onChange(() => starMass.max(physics.explosionMass - 1));
 
-  const algorithms: SimulationAlgorithms = { ...BASELINE_ALGORITHMS };
+  const algorithms: SimulationAlgorithms = { ...OPTIMIZED_ALGORITHMS };
   const simulationFolder = gui.addFolder("Performance").addFolder("Simulation");
   const algorithmControllers = [
     simulationFolder.add(algorithms, "gravity", { Naive: "naive", Tiled: "tiled" }).name("Gravity"),
@@ -141,13 +141,17 @@ export function createControlPanel(
   algorithmControllers.push(explosionAlgorithm);
   const updateAlgorithms = () => simulation.setAlgorithms(algorithms);
   algorithmControllers.forEach((controller) => controller.onChange(updateAlgorithms));
-  simulationFolder.add({
-    baseline: () => {
-      Object.assign(algorithms, BASELINE_ALGORITHMS);
-      updateAlgorithms();
-      algorithmControllers.forEach((controller) => controller.updateDisplay());
-    },
-  }, "baseline").name("Baseline");
+  const applyPreset = (preset: Readonly<SimulationAlgorithms>) => {
+    Object.assign(algorithms, preset);
+    updateAlgorithms();
+    algorithmControllers.forEach((controller) => controller.updateDisplay());
+  };
+  const presets = {
+    baseline: () => applyPreset(BASELINE_ALGORITHMS),
+    optimized: () => applyPreset(OPTIMIZED_ALGORITHMS),
+  };
+  simulationFolder.add(presets, "baseline").name("Baseline");
+  simulationFolder.add(presets, "optimized").name("All Optimizations");
 
   const renderingFolder = gui.addFolder("Rendering");
   const updateRendering = () => renderer.updateRenderParams();

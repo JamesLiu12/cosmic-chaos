@@ -9,14 +9,14 @@ import CompactionStage from "./simulation/CompactionStage";
 import ExplosionStage from "./simulation/ExplosionStage";
 import GravityStage from "./simulation/GravityStage";
 import { BODY_DISPATCH_CONSTANTS, BODY_WORKGROUP_SIZE } from "./simulation/dispatch";
-import { BASELINE_ALGORITHMS } from "./simulation/types";
+import { OPTIMIZED_ALGORITHMS } from "./simulation/types";
 import type { SimulationAlgorithms, SimulationBuffers } from "./simulation/types";
 
 export default class Simulation {
   private readonly device: GPUDevice;
   private readonly uniforms = new SimulationUniforms();
   private readonly buffers: SimulationBuffers;
-  private readonly algorithms: SimulationAlgorithms = { ...BASELINE_ALGORITHMS };
+  private readonly algorithms: SimulationAlgorithms = { ...OPTIMIZED_ALGORITHMS };
 
   private readonly gravity: GravityStage;
   private readonly collision: CollisionStage;

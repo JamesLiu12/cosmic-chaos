@@ -21,3 +21,11 @@ export const BASELINE_ALGORITHMS: Readonly<SimulationAlgorithms> = {
   compaction: "serial",
   explosion: "serial",
 };
+
+export const OPTIMIZED_ALGORITHMS: Readonly<SimulationAlgorithms> = {
+  gravity: "tiled",
+  collision: "grid",
+  absorption: "donor-lists",
+  compaction: "scan",
+  explosion: "parallel",
+};
