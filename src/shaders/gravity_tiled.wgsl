@@ -40,10 +40,6 @@ fn gravityTiled(
         if (isValidBody) {
             let tileCount = min(BODY_WORKGROUP_SIZE, count - base);
             for (var j = 0u; j < tileCount; j++) {
-                if (base + j == i) {
-                    continue;
-                }
-
                 let other = tilePositionMass[j];
                 let r = other.xyz - body.position;
                 let radiusSum = body.radius + tileRadius[j];
