@@ -7,6 +7,9 @@ import WebGpuContext from "./WebGpuContext";
 import "./style.css"
 import { createControlPanel } from "./ControlPanel";
 
+const gpuProfiling = new URLSearchParams(window.location.search).has("gpuProfiling");
+const gpuProfilingWarmupSteps = 4800;
+
 const canvas = document.querySelector<HTMLCanvasElement>("#gpu-canvas");
 
 if (!canvas) {
@@ -14,6 +17,7 @@ if (!canvas) {
 }
 
 const gpuContext = await WebGpuContext.create(canvas);
+const { device } = gpuContext;
 
 const sceneOptions: SceneOptions = {
   seed: 0,
@@ -37,7 +41,7 @@ const sceneOptions: SceneOptions = {
 
 const scene = new Scene(sceneOptions);
 
-const simulation = new Simulation(gpuContext.device, scene);
+const simulation = new Simulation(device, scene);
 
 const renderer = new Renderer(
   gpuContext, 
@@ -46,6 +50,19 @@ const renderer = new Renderer(
   simulation.simulationParamsBuffer,
   simulation.simulationDispatchArgsBuffer
 );
+
+if (gpuProfiling) {
+  const stepsPerBatch = 16;
+  for (let batchStart = 0; batchStart < gpuProfilingWarmupSteps; batchStart += stepsPerBatch) {
+    const encoder = device.createCommandEncoder();
+    const stepsInBatch = Math.min(stepsPerBatch, gpuProfilingWarmupSteps - batchStart);
+    for (let step = 0; step < stepsInBatch; step++) {
+      simulation.encodeStep(encoder);
+    }
+    device.queue.submit([encoder.finish()]);
+    await device.queue.onSubmittedWorkDone();
+  }
+}
 
 const cameraController = new CameraController(canvas, renderer.camera);
 
@@ -72,15 +89,19 @@ const frame = (time: number): void => {
     ? 0 : Math.min((time - previousTime) * 0.001, 0.1);
   
   previousTime = time;
-  accTime += dt;
 
-  const device = gpuContext.device;
   const encoder = device.createCommandEncoder();
-  const fixedDt = scene.simulationConfig.fixedDt;
 
-  while (accTime >= fixedDt) {
+  if (gpuProfiling) {
     simulation.encodeStep(encoder);
-    accTime -= fixedDt;
+  } else {
+    accTime += dt;
+    const fixedDt = scene.simulationConfig.fixedDt;
+
+    while (accTime >= fixedDt) {
+      simulation.encodeStep(encoder);
+      accTime -= fixedDt;
+    }
   }
 
   cameraController.update(dt);
