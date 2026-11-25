@@ -23,8 +23,8 @@ export const BASELINE_ALGORITHMS: Readonly<SimulationAlgorithms> = {
 };
 
 export const OPTIMIZED_ALGORITHMS: Readonly<SimulationAlgorithms> = {
-  gravity: "tiled",
-  collision: "grid",
+  gravity: "source-split",
+  collision: "grid-clusters",
   absorption: "donor-lists",
   compaction: "scan",
   explosion: "parallel",
