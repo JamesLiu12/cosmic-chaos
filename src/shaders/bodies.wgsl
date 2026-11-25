@@ -82,6 +82,30 @@ fn vertMain(
     return output;
 }
 
+fn rockHeight(p: vec3<f32>, offset: vec3<f32>) -> f32 {
+    return 0.010 * noise3D(12.0 * p + offset)
+         + 0.006 * noise3D(40.0 * p + offset)
+         + 0.003 * noise3D(100.0 * p + offset);
+}
+
+fn rockNormal(p: vec3<f32>, offset: vec3<f32>) -> vec3<f32> {
+    let epsilon = 0.001;
+
+    let height = rockHeight(p, offset);
+    let heightX = rockHeight(p + vec3<f32>(epsilon, 0.0, 0.0), offset);
+    let heightY = rockHeight(p + vec3<f32>(0.0, epsilon, 0.0), offset);
+    let heightZ = rockHeight(p + vec3<f32>(0.0, 0.0, epsilon), offset);
+
+    let gradient = vec3<f32>(
+        heightX - height,
+        heightY - height,
+        heightZ - height
+    ) / epsilon;
+
+    let surfaceGradient = gradient - p * dot(gradient, p);
+    return normalize(p - surfaceGradient);
+}
+
 @fragment
 fn fragMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let body = bodies[input.bodyIndex];
@@ -109,7 +133,8 @@ fn fragMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let baseColor = rockColor
         * (0.95 + 0.10 * smoothstep(-0.25, 0.25, detail));
 
-    let normal = normalize(input.normal);
+    let localNormal = rockNormal(p, input.surfaceOffset);
+    let normal = normalize(rotateVector(body.orientation, localNormal));
     let skyWeight = normal.y * 0.5 + 0.5;
     let ambient = 0.2 * mix(
         vec3<f32>(0.020, 0.020, 0.030),
