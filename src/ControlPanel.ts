@@ -124,7 +124,9 @@ export function createControlPanel(
   const algorithms: SimulationAlgorithms = { ...OPTIMIZED_ALGORITHMS };
   const simulationFolder = gui.addFolder("Performance").addFolder("Simulation");
   const algorithmControllers = [
-    simulationFolder.add(algorithms, "gravity", { Naive: "naive", Tiled: "tiled" }).name("Gravity"),
+    simulationFolder.add(algorithms, "gravity", {
+      Naive: "naive", Tiled: "tiled", "Tiled (source split)": "source-split",
+    }).name("Gravity"),
     simulationFolder.add(algorithms, "collision", {
       "All pairs": "all-pairs", Grid: "grid",
       "Grid (cluster pairs)": "grid-clusters",

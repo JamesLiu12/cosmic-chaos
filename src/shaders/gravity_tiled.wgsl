@@ -10,24 +10,18 @@ var<uniform> params: SimulationUniforms;
 var<workgroup> tilePositionMass: array<vec4<f32>, BODY_WORKGROUP_SIZE>;
 var<workgroup> tileRadius: array<f32, BODY_WORKGROUP_SIZE>;
 
-@compute @workgroup_size(BODY_WORKGROUP_SIZE)
-fn gravityTiled(
-    @builtin(global_invocation_id) invocationId: vec3<u32>,
-    @builtin(local_invocation_index) localIndex: u32,
-) {
-    let i = invocationId.x;
-    let count = params.bodyCount;
-    let isValidBody = i < count;
-
-    var body = Body();
-    if (isValidBody) {
-        body = inputBodies[i];
-    }
+fn accumulateGravityTiles(
+    body: Body,
+    isValidBody: bool,
+    localIndex: u32,
+    firstSource: u32,
+    sourceEnd: u32,
+) -> vec3<f32> {
     var acceleration = vec3<f32>(0.0);
 
-    for (var base = 0u; base < count; base += BODY_WORKGROUP_SIZE) {
+    for (var base = firstSource; base < sourceEnd; base += BODY_WORKGROUP_SIZE) {
         let sourceIndex = base + localIndex;
-        if (sourceIndex < count) {
+        if (sourceIndex < sourceEnd) {
             let other = inputBodies[sourceIndex];
             tilePositionMass[localIndex] = vec4<f32>(other.position, other.mass);
             tileRadius[localIndex] = other.radius;
@@ -38,7 +32,7 @@ fn gravityTiled(
         workgroupBarrier();
 
         if (isValidBody) {
-            let tileCount = min(BODY_WORKGROUP_SIZE, count - base);
+            let tileCount = min(BODY_WORKGROUP_SIZE, sourceEnd - base);
             for (var j = 0u; j < tileCount; j++) {
                 let other = tilePositionMass[j];
                 let r = other.xyz - body.position;
@@ -56,6 +50,24 @@ fn gravityTiled(
         workgroupBarrier();
     }
 
+    return acceleration;
+}
+
+@compute @workgroup_size(BODY_WORKGROUP_SIZE)
+fn gravityTiled(
+    @builtin(global_invocation_id) invocationId: vec3<u32>,
+    @builtin(local_invocation_index) localIndex: u32,
+) {
+    let i = invocationId.x;
+    let count = params.bodyCount;
+    let isValidBody = i < count;
+
+    var body = Body();
+    if (isValidBody) {
+        body = inputBodies[i];
+    }
+
+    let acceleration = accumulateGravityTiles(body, isValidBody, localIndex, 0u, count);
     if (isValidBody) {
         outputBodies[i] = integrateGravity(body, acceleration);
     }

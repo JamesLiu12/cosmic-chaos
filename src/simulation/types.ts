@@ -7,7 +7,7 @@ export interface SimulationBuffers {
 }
 
 export interface SimulationAlgorithms {
-  gravity: "naive" | "tiled";
+  gravity: "naive" | "tiled" | "source-split";
   collision: "all-pairs" | "grid" | "grid-clusters";
   absorption: "full-scan" | "donor-lists";
   compaction: "serial" | "scan";
