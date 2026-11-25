@@ -130,8 +130,17 @@ fn fragMain(input: VertexOutput) -> @location(0) vec4<f32> {
         vec3<f32>(0.34, 0.32, 0.29),
         input.paletteMix
     );
-    let baseColor = rockColor
-        * (0.95 + 0.10 * smoothstep(-0.25, 0.25, detail));
+    
+    let grain = noise3D(100.0 * p + input.surfaceOffset);
+
+    let largeVariation = mix(
+        0.75, 1.15, smoothstep(-0.30, 0.30, detail)
+    );
+    let grainVariation = mix(
+        0.80, 1.20, smoothstep(-0.35, 0.35, grain)
+    );
+
+    let baseColor = rockColor * largeVariation * grainVariation;
 
     let localNormal = rockNormal(p, input.surfaceOffset);
     let normal = normalize(rotateVector(body.orientation, localNormal));
