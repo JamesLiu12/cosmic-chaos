@@ -1,3 +1,6 @@
+@group(0) @binding(1)
+var<storage, read_write> collisionCandidates: array<u32>;
+
 @compute @workgroup_size(BODY_WORKGROUP_SIZE)
 fn detectCollisions(
     @builtin(global_invocation_id) invocationId: vec3<u32>,

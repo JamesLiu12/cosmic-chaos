@@ -127,6 +127,7 @@ export function createControlPanel(
     simulationFolder.add(algorithms, "gravity", { Naive: "naive", Tiled: "tiled" }).name("Gravity"),
     simulationFolder.add(algorithms, "collision", {
       "All pairs": "all-pairs", Grid: "grid",
+      "Grid (cluster pairs)": "grid-clusters",
     }).name("Collision"),
     simulationFolder.add(algorithms, "absorption", {
       "Full scan": "full-scan", "Donor lists": "donor-lists",
